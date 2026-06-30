@@ -5,6 +5,7 @@
  */
 
 #include "GammaEngine.h"
+#include "OverlayWindow.h"
 
 #include <Screen.h>
 #include <algorithm>
@@ -14,15 +15,19 @@
 GammaEngine::GammaEngine()
 	:
 	fTemperature(kDefaultTemperature),
-	fEnabled(false)
+	fEnabled(false),
+	fOverlay(NULL)
 {
 }
 
 
 GammaEngine::~GammaEngine()
 {
-	if (fEnabled)
-		_ResetGamma();
+	if (fOverlay != NULL) {
+		fOverlay->Lock();
+		fOverlay->Quit();
+		fOverlay = NULL;
+	}
 }
 
 
@@ -31,7 +36,7 @@ GammaEngine::SetTemperature(int32 kelvin)
 {
 	fTemperature = std::max(kMinTemperature, std::min(kMaxTemperature, kelvin));
 	if (fEnabled)
-		_ApplyGamma();
+		_UpdateOverlay();
 }
 
 
@@ -40,7 +45,7 @@ GammaEngine::Enable()
 {
 	if (!fEnabled) {
 		fEnabled = true;
-		_ApplyGamma();
+		_UpdateOverlay();
 	}
 }
 
@@ -50,7 +55,11 @@ GammaEngine::Disable()
 {
 	if (fEnabled) {
 		fEnabled = false;
-		_ResetGamma();
+		if (fOverlay != NULL) {
+			fOverlay->Lock();
+			fOverlay->Quit();
+			fOverlay = NULL;
+		}
 	}
 }
 
@@ -66,43 +75,37 @@ GammaEngine::Toggle()
 
 
 void
-GammaEngine::_ApplyGamma()
+GammaEngine::_UpdateOverlay()
 {
-	float redMul, greenMul, blueMul;
-	_TemperatureToRGB(fTemperature, &redMul, &greenMul, &blueMul);
+	float red, green, blue;
+	_TemperatureToRGB(fTemperature, &red, &green, &blue);
 
-	uint16 red[256], green[256], blue[256];
+	// El overlay tiene el color inverso: cuanto más baja la temperatura,
+	// más rojo/naranja necesitamos. El tinte es lo que "falta" respecto
+	// a la identidad (6500K). Solo filtramos azul y un poco de verde.
+	// Usamos un naranja cálido con alpha proporcional a la intensidad.
+	uint8 tintR = 255;
+	uint8 tintG = (uint8)(255 * (1.0f - (1.0f - green) * 0.6f));
+	uint8 tintB = 0;
 
-	for (int i = 0; i < 256; i++) {
-		red[i]   = (uint16)(i * redMul) << 8;
-		green[i] = (uint16)(i * greenMul) << 8;
-		blue[i]  = (uint16)(i * blueMul) << 8;
+	// alpha va de 0 (6500K, sin efecto) a ~100 (1900K, máximo filtro)
+	float intensity = 1.0f - (blue + green) / 2.0f;
+	uint8 alpha = (uint8)(intensity * 110.0f);
+
+	if (fOverlay == NULL) {
+		BScreen screen(B_MAIN_SCREEN_ID);
+		BRect frame = screen.Frame();
+		fOverlay = new OverlayWindow(frame, tintR, tintG, tintB, alpha);
+		fOverlay->Show();
+	} else {
+		fOverlay->SetColor(tintR, tintG, tintB, alpha);
 	}
-
-	BScreen screen(B_MAIN_SCREEN_ID);
-	if (screen.IsValid())
-		screen.SetGammaRamp(&red, &green, &blue);
-}
-
-
-void
-GammaEngine::_ResetGamma()
-{
-	uint16 red[256], green[256], blue[256];
-
-	for (int i = 0; i < 256; i++) {
-		red[i]   = (uint16)i << 8;
-		green[i] = (uint16)i << 8;
-		blue[i]  = (uint16)i << 8;
-	}
-
-	BScreen screen(B_MAIN_SCREEN_ID);
-	if (screen.IsValid())
-		screen.SetGammaRamp(&red, &green, &blue);
 }
 
 
 // Mapeo de temperatura de color a multiplicadores RGB.
+// Basado en la aproximación de Tanner Helland para curvas de
+// radiación de cuerpo negro. Kelvin entra, sale un factor 0-1 por canal.
 // Ref: https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html
 void
 GammaEngine::_TemperatureToRGB(int32 kelvin, float* outRed, float* outGreen,

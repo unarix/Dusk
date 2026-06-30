@@ -7,6 +7,7 @@
 #define GAMMA_ENGINE_H
 
 #include <SupportDefs.h>
+#include <Window.h>
 
 
 // rango de temperaturas que tiene sentido manejar
@@ -14,6 +15,8 @@ static const int32 kMinTemperature = 1900;
 static const int32 kMaxTemperature = 6500;
 static const int32 kDefaultTemperature = 3500;
 
+
+class OverlayWindow;
 
 class GammaEngine {
 public:
@@ -30,13 +33,13 @@ public:
 	void				Toggle();
 
 private:
-	void				_ApplyGamma();
-	void				_ResetGamma();
 	void				_TemperatureToRGB(int32 kelvin,
 							float* outRed, float* outGreen, float* outBlue);
+	void				_UpdateOverlay();
 
 	int32				fTemperature;
 	bool				fEnabled;
+	OverlayWindow*		fOverlay;
 };
 
 #endif // GAMMA_ENGINE_H
