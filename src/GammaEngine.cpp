@@ -5,29 +5,37 @@
  */
 
 #include "GammaEngine.h"
-#include "OverlayWindow.h"
 
-#include <Screen.h>
-#include <algorithm>
+#include <AppServerLink.h>
+#include <ServerProtocol.h>
+
+#include <fcntl.h>
+#include <unistd.h>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <algorithm>
 
 
 GammaEngine::GammaEngine()
 	:
 	fTemperature(kDefaultTemperature),
 	fEnabled(false),
-	fOverlay(NULL)
+	fInitStatus(B_NO_INIT),
+	fDeviceFD(-1),
+	fAccelerantImage(-1),
+	fGetHook(NULL),
+	fSetIndexedColors(NULL)
 {
+	fInitStatus = _InitAccelerant();
 }
 
 
 GammaEngine::~GammaEngine()
 {
-	if (fOverlay != NULL) {
-		fOverlay->Lock();
-		fOverlay->Quit();
-		fOverlay = NULL;
-	}
+	if (fEnabled)
+		_ResetGamma();
+	_UninitAccelerant();
 }
 
 
@@ -36,7 +44,7 @@ GammaEngine::SetTemperature(int32 kelvin)
 {
 	fTemperature = std::max(kMinTemperature, std::min(kMaxTemperature, kelvin));
 	if (fEnabled)
-		_UpdateOverlay();
+		_ApplyGamma();
 }
 
 
@@ -45,7 +53,7 @@ GammaEngine::Enable()
 {
 	if (!fEnabled) {
 		fEnabled = true;
-		_UpdateOverlay();
+		_ApplyGamma();
 	}
 }
 
@@ -55,11 +63,7 @@ GammaEngine::Disable()
 {
 	if (fEnabled) {
 		fEnabled = false;
-		if (fOverlay != NULL) {
-			fOverlay->Lock();
-			fOverlay->Quit();
-			fOverlay = NULL;
-		}
+		_ResetGamma();
 	}
 }
 
@@ -74,32 +78,205 @@ GammaEngine::Toggle()
 }
 
 
-void
-GammaEngine::_UpdateOverlay()
+status_t
+GammaEngine::_InitAccelerant()
 {
-	float red, green, blue;
-	_TemperatureToRGB(fTemperature, &red, &green, &blue);
+	// Pedimos al app_server la ruta del driver gráfico activo
+	char driverPath[B_PATH_NAME_LENGTH];
+	char accelerantPath[B_PATH_NAME_LENGTH];
 
-	// El overlay tiene el color inverso: cuanto más baja la temperatura,
-	// más rojo/naranja necesitamos. El tinte es lo que "falta" respecto
-	// a la identidad (6500K). Solo filtramos azul y un poco de verde.
-	// Usamos un naranja cálido con alpha proporcional a la intensidad.
-	uint8 tintR = 255;
-	uint8 tintG = (uint8)(255 * (1.0f - (1.0f - green) * 0.6f));
-	uint8 tintB = 0;
+	{
+		BPrivate::AppServerLink link;
+		link.StartMessage(AS_GET_DRIVER_PATH);
+		link.Attach<int32>(0);  // screen ID = main
 
-	// alpha va de 0 (6500K, sin efecto) a ~100 (1900K, máximo filtro)
-	float intensity = 1.0f - (blue + green) / 2.0f;
-	uint8 alpha = (uint8)(intensity * 110.0f);
-
-	if (fOverlay == NULL) {
-		BScreen screen(B_MAIN_SCREEN_ID);
-		BRect frame = screen.Frame();
-		fOverlay = new OverlayWindow(frame, tintR, tintG, tintB, alpha);
-		fOverlay->Show();
-	} else {
-		fOverlay->SetColor(tintR, tintG, tintB, alpha);
+		status_t status;
+		if (link.FlushWithReply(status) != B_OK || status != B_OK)
+			return B_ERROR;
+		link.ReadString(driverPath, B_PATH_NAME_LENGTH);
 	}
+
+	{
+		BPrivate::AppServerLink link;
+		link.StartMessage(AS_GET_ACCELERANT_PATH);
+		link.Attach<int32>(0);  // screen ID = main
+
+		status_t status;
+		if (link.FlushWithReply(status) != B_OK || status != B_OK)
+			return B_ERROR;
+		link.ReadString(accelerantPath, B_PATH_NAME_LENGTH);
+	}
+
+	// Abrir el device del driver gráfico
+	fDeviceFD = open(driverPath, O_RDWR | O_CLOEXEC);
+	if (fDeviceFD < 0)
+		return B_ERROR;
+
+	// Cargar el accelerant como add-on
+	fAccelerantImage = load_add_on(accelerantPath);
+	if (fAccelerantImage < 0) {
+		close(fDeviceFD);
+		fDeviceFD = -1;
+		return B_ERROR;
+	}
+
+	// Obtener el entry point del accelerant
+	status_t result = get_image_symbol(fAccelerantImage,
+		B_ACCELERANT_ENTRY_POINT, B_SYMBOL_TYPE_TEXT, (void**)&fGetHook);
+	if (result != B_OK) {
+		unload_add_on(fAccelerantImage);
+		close(fDeviceFD);
+		fAccelerantImage = -1;
+		fDeviceFD = -1;
+		return B_ERROR;
+	}
+
+	// Clonar el accelerant (otro proceso ya lo inicializó — el app_server)
+	typedef status_t (*clone_accelerant_func)(void* data);
+	clone_accelerant_func cloneFunc = (clone_accelerant_func)
+		fGetHook(B_CLONE_ACCELERANT, NULL);
+	if (cloneFunc == NULL) {
+		unload_add_on(fAccelerantImage);
+		close(fDeviceFD);
+		fAccelerantImage = -1;
+		fDeviceFD = -1;
+		return B_ERROR;
+	}
+
+	// Para clonar necesitamos el clone info del accelerant primario
+	// Primero obtenemos el tamaño del clone info
+	typedef ssize_t (*clone_info_size_func)(void);
+	clone_info_size_func sizeFunc = (clone_info_size_func)
+		fGetHook(B_ACCELERANT_CLONE_INFO_SIZE, NULL);
+	if (sizeFunc == NULL) {
+		unload_add_on(fAccelerantImage);
+		close(fDeviceFD);
+		fAccelerantImage = -1;
+		fDeviceFD = -1;
+		return B_ERROR;
+	}
+
+	ssize_t cloneInfoSize = sizeFunc();
+	if (cloneInfoSize <= 0) {
+		unload_add_on(fAccelerantImage);
+		close(fDeviceFD);
+		fAccelerantImage = -1;
+		fDeviceFD = -1;
+		return B_ERROR;
+	}
+
+	// Obtener la info de clonación
+	typedef void (*get_clone_info_func)(void* data);
+	get_clone_info_func getInfoFunc = (get_clone_info_func)
+		fGetHook(B_GET_ACCELERANT_CLONE_INFO, NULL);
+	if (getInfoFunc == NULL) {
+		unload_add_on(fAccelerantImage);
+		close(fDeviceFD);
+		fAccelerantImage = -1;
+		fDeviceFD = -1;
+		return B_ERROR;
+	}
+
+	char* cloneInfo = new char[cloneInfoSize];
+	getInfoFunc(cloneInfo);
+
+	// Clonar usando la info (normalmente es el path del device)
+	result = cloneFunc(cloneInfo);
+	delete[] cloneInfo;
+
+	if (result != B_OK) {
+		unload_add_on(fAccelerantImage);
+		close(fDeviceFD);
+		fAccelerantImage = -1;
+		fDeviceFD = -1;
+		return result;
+	}
+
+	// Obtener el hook de set_indexed_colors
+	fSetIndexedColors = (set_indexed_colors)
+		fGetHook(B_SET_INDEXED_COLORS, NULL);
+
+	// Puede ser NULL si el driver no lo soporta.
+	// Intel/Radeon lo implementan, pero nvidia-haiku (X547) todavía no.
+	// Sin este hook no podemos tocar la LUT del hardware.
+	if (fSetIndexedColors == NULL) {
+		// Igualmente dejamos el clone activo por si en el futuro
+		// se agrega soporte. Reportamos el error para que la UI avise.
+		fprintf(stderr, "Dusk: driver no soporta B_SET_INDEXED_COLORS\n");
+		return B_NOT_SUPPORTED;
+	}
+
+	return B_OK;
+}
+
+
+void
+GammaEngine::_UninitAccelerant()
+{
+	if (fAccelerantImage >= 0) {
+		typedef void (*uninit_func)(void);
+		uninit_func uninit = (uninit_func)
+			fGetHook(B_UNINIT_ACCELERANT, NULL);
+		if (uninit != NULL)
+			uninit();
+		unload_add_on(fAccelerantImage);
+		fAccelerantImage = -1;
+	}
+
+	if (fDeviceFD >= 0) {
+		close(fDeviceFD);
+		fDeviceFD = -1;
+	}
+}
+
+
+void
+GammaEngine::_ApplyGamma()
+{
+	if (fSetIndexedColors == NULL)
+		return;
+
+	float redMul, greenMul, blueMul;
+	_TemperatureToRGB(fTemperature, &redMul, &greenMul, &blueMul);
+
+	// Armamos 256 entradas de paleta.
+	// En los drivers Intel/Radeon esto escribe a los registros
+	// PALETTE del CRTC, que actúan como LUT de gamma para todos
+	// los modos de color (incluyendo RGB32).
+	uint8 colors[256 * 3];
+	for (int i = 0; i < 256; i++) {
+		colors[i * 3 + 0] = (uint8)(i * redMul);
+		colors[i * 3 + 1] = (uint8)(i * greenMul);
+		colors[i * 3 + 2] = (uint8)(i * blueMul);
+	}
+
+	_SetPalette(colors, 0, 256);
+}
+
+
+void
+GammaEngine::_ResetGamma()
+{
+	if (fSetIndexedColors == NULL)
+		return;
+
+	// Rampa lineal — identidad
+	uint8 colors[256 * 3];
+	for (int i = 0; i < 256; i++) {
+		colors[i * 3 + 0] = (uint8)i;
+		colors[i * 3 + 1] = (uint8)i;
+		colors[i * 3 + 2] = (uint8)i;
+	}
+
+	_SetPalette(colors, 0, 256);
+}
+
+
+void
+GammaEngine::_SetPalette(const uint8* colors, uint8 first, uint32 count)
+{
+	if (fSetIndexedColors != NULL)
+		fSetIndexedColors(count, first, colors, 0);
 }
 
 

@@ -8,14 +8,13 @@ SRCS = src/main.cpp \
        src/DuskWindow.cpp \
        src/DuskView.cpp \
        src/GammaEngine.cpp \
-       src/OverlayWindow.cpp \
-       src/OverlayView.cpp \
        src/TrayView.cpp
 
 RDEFS = res/Dusk.rdef
 LIBS = be tracker $(STDCPPLIBS)
 LIBPATHS =
-SYSTEM_INCLUDE_PATHS =
+SYSTEM_INCLUDE_PATHS = /boot/system/develop/headers/private/app \
+                       /boot/system/develop/headers/private/interface
 LOCAL_INCLUDE_PATHS = src
 
 OPTIMIZE := FULL
