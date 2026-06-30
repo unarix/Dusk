@@ -1,0 +1,21 @@
+/*
+ * Dusk resource definition
+ */
+
+resource app_signature "application/x-vnd.Dusk";
+
+resource app_flags B_SINGLE_LAUNCH;
+
+resource app_version {
+	major  = 1,
+	middle = 0,
+	minor  = 0,
+
+	variety = B_APPV_FINAL,
+	internal = 0,
+
+	short_info = "Dusk",
+	long_info = "Night Shift for Haiku - blue light filter using gamma ramp"
+};
+
+resource(1, "BEOS:APP_SIG") "application/x-vnd.Dusk";
