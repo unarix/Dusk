@@ -1,2 +1,2 @@
 # Dusk
-NightShift to Haiku
+NightShift app to Haiku
