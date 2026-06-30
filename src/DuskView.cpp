@@ -19,7 +19,7 @@
 
 DuskView::DuskView(GammaEngine* engine)
 	:
-	BView("DuskView", B_WILL_DRAW | B_SUPPORTS_LAYOUT | B_FRAME_EVENTS),
+	BView("DuskView", B_WILL_DRAW | B_SUPPORTS_LAYOUT),
 	fEngine(engine),
 	fToggleButton(NULL),
 	fTempSlider(NULL),
@@ -59,6 +59,7 @@ DuskView::AttachedToWindow()
 	fTempSlider->SetLimitLabels("Cálido", "Neutro");
 	fTempSlider->SetTarget(Window());
 	fTempSlider->SetModificationMessage(new BMessage(kMsgSetTemperature));
+	fTempSlider->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNSET));
 
 	// Botón
 	fToggleButton = new BButton("toggle", "Activar",
@@ -68,6 +69,7 @@ DuskView::AttachedToWindow()
 	// BBox agrupando los controles del filtro
 	BBox* filterBox = new BBox("filterGroup");
 	filterBox->SetLabel("Filtro");
+	filterBox->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNLIMITED));
 
 	BLayoutBuilder::Group<>(filterBox, B_VERTICAL, B_USE_DEFAULT_SPACING)
 		.SetInsets(B_USE_DEFAULT_SPACING, B_USE_BIG_SPACING,
