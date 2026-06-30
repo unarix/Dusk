@@ -12,7 +12,7 @@
 
 DuskWindow::DuskWindow()
 	:
-	BWindow(BRect(100, 100, 380, 310), "Dusk",
+	BWindow(BRect(100, 100, 380, 300), "Dusk",
 		B_TITLED_WINDOW,
 		B_NOT_RESIZABLE | B_NOT_ZOOMABLE | B_AUTO_UPDATE_SIZE_LIMITS),
 	fView(NULL)

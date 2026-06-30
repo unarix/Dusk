@@ -10,7 +10,6 @@
 
 #include <Box.h>
 #include <Button.h>
-#include <Font.h>
 #include <LayoutBuilder.h>
 #include <SeparatorView.h>
 #include <Slider.h>
@@ -25,7 +24,7 @@ DuskView::DuskView(BRect frame, GammaEngine* engine)
 	fToggleButton(NULL),
 	fTempSlider(NULL),
 	fStatusLabel(NULL),
-	fTempLabel(NULL),
+	fTempValue(NULL),
 	fDriverLabel(NULL)
 {
 	SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
@@ -42,73 +41,61 @@ DuskView::AttachedToWindow()
 {
 	BView::AttachedToWindow();
 
-	// -- Título y estado --
-	BStringView* titleLabel = new BStringView("title", "Dusk");
-	BFont titleFont(be_bold_font);
-	titleFont.SetSize(16.0f);
-	titleLabel->SetFont(&titleFont);
-
+	// Estado actual
 	fStatusLabel = new BStringView("status", "Inactivo");
-	fStatusLabel->SetFontSize(11.0f);
 
-	// -- Indicador de temperatura actual --
-	fTempLabel = new BStringView("tempLabel", "3500K");
-	BFont tempFont(be_bold_font);
-	tempFont.SetSize(13.0f);
-	fTempLabel->SetFont(&tempFont);
-	fTempLabel->SetAlignment(B_ALIGN_CENTER);
+	// Valor de temperatura actual
+	fTempValue = new BStringView("tempValue", "3500K");
+	fTempValue->SetAlignment(B_ALIGN_RIGHT);
 
-	// -- Slider --
-	fTempSlider = new BSlider("tempSlider", NULL,
+	// Slider de temperatura
+	fTempSlider = new BSlider("tempSlider", "Temperatura de color",
 		new BMessage(kMsgSetTemperature),
 		kMinTemperature, kMaxTemperature, B_HORIZONTAL);
 	fTempSlider->SetValue(fEngine->Temperature());
 	fTempSlider->SetHashMarks(B_HASH_MARKS_BOTTOM);
 	fTempSlider->SetHashMarkCount(10);
-	fTempSlider->SetLimitLabels("1900K", "6500K");
+	fTempSlider->SetLimitLabels("Cálido", "Neutro");
 	fTempSlider->SetTarget(Window());
 	fTempSlider->SetModificationMessage(new BMessage(kMsgSetTemperature));
-	fTempSlider->SetBarColor((rgb_color){255, 140, 40, 255});
 
-	// -- Botón toggle --
+	// Botón toggle
 	fToggleButton = new BButton("toggle", "Activar",
 		new BMessage(kMsgToggle));
 	fToggleButton->SetTarget(Window());
-	fToggleButton->MakeDefault(true);
 
-	// -- Info del driver --
+	// Grupo "Filtro" con BBox
+	BBox* filterBox = new BBox("filterGroup");
+	filterBox->SetLabel("Filtro");
+
+	BLayoutBuilder::Group<>(filterBox, B_VERTICAL, B_USE_HALF_ITEM_SPACING)
+		.SetInsets(B_USE_SMALL_INSETS)
+		.AddGroup(B_HORIZONTAL)
+			.Add(fStatusLabel)
+			.AddGlue()
+			.Add(fTempValue)
+		.End()
+		.Add(fTempSlider)
+		.Add(fToggleButton)
+	.End();
+
+	// Info del driver
 	BString driverStr;
 	driverStr.SetToFormat("GPU: %s", fEngine->DriverName());
 	fDriverLabel = new BStringView("driver", driverStr.String());
-	fDriverLabel->SetFontSize(10.0f);
-	fDriverLabel->SetHighUIColor(B_PANEL_TEXT_COLOR, 0.6f);
 
-	// -- Layout --
-	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
+	// Layout principal
+	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING)
 		.SetInsets(B_USE_WINDOW_INSETS)
-		.AddGroup(B_HORIZONTAL)
-			.Add(titleLabel)
-			.AddGlue()
-			.Add(fStatusLabel)
-		.End()
-		.AddStrut(B_USE_HALF_ITEM_SPACING)
-		.Add(new BSeparatorView(B_HORIZONTAL))
-		.AddStrut(B_USE_ITEM_SPACING)
-		.Add(fTempLabel)
-		.AddStrut(B_USE_HALF_ITEM_SPACING)
-		.Add(fTempSlider)
-		.AddStrut(B_USE_ITEM_SPACING)
-		.Add(fToggleButton)
+		.Add(filterBox)
 		.AddGlue()
-		.Add(new BSeparatorView(B_HORIZONTAL))
-		.AddStrut(B_USE_HALF_ITEM_SPACING)
 		.Add(fDriverLabel)
 	.End();
 
-	// Si el driver no soporta gamma, deshabilitamos
+	// Si el driver no soporta gamma
 	if (fEngine->InitCheck() != B_OK) {
 		fStatusLabel->SetText("No soportado");
-		fStatusLabel->SetHighColor(180, 40, 40);
+		fStatusLabel->SetHighColor((rgb_color){180, 40, 40, 255});
 		fToggleButton->SetEnabled(false);
 		fTempSlider->SetEnabled(false);
 	}
@@ -119,10 +106,8 @@ void
 DuskView::UpdateState()
 {
 	if (fEngine->IsEnabled()) {
-		BString status;
-		status.SetToFormat("Activo");
-		fStatusLabel->SetText(status.String());
-		fStatusLabel->SetHighColor(40, 160, 60);
+		fStatusLabel->SetText("Activo");
+		fStatusLabel->SetHighColor((rgb_color){40, 140, 40, 255});
 		fToggleButton->SetLabel("Desactivar");
 	} else {
 		fStatusLabel->SetText("Inactivo");
@@ -132,7 +117,7 @@ DuskView::UpdateState()
 
 	BString tempStr;
 	tempStr.SetToFormat("%ldK", (long)fEngine->Temperature());
-	fTempLabel->SetText(tempStr.String());
+	fTempValue->SetText(tempStr.String());
 
 	fTempSlider->SetValue(fEngine->Temperature());
 }

@@ -8,6 +8,7 @@
 
 #include <View.h>
 
+class BBox;
 class BButton;
 class BSlider;
 class BStringView;
@@ -27,7 +28,7 @@ private:
 	BButton*			fToggleButton;
 	BSlider*			fTempSlider;
 	BStringView*		fStatusLabel;
-	BStringView*		fTempLabel;
+	BStringView*		fTempValue;
 	BStringView*		fDriverLabel;
 };
 
