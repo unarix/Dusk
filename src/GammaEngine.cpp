@@ -8,6 +8,7 @@
 
 #include <AppServerLink.h>
 #include <ServerProtocol.h>
+#include <Screen.h>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -332,23 +333,29 @@ GammaEngine::_TemperatureToRGB(int32 kelvin, float* outRed, float* outGreen,
 void
 GammaEngine::_ExtractDriverName(const char* path)
 {
+	// Intentamos obtener el nombre real del dispositivo vía BScreen
+	BScreen screen(B_MAIN_SCREEN_ID);
+	if (screen.IsValid()) {
+		accelerant_device_info info;
+		if (screen.GetDeviceInfo(&info) == B_OK && info.name[0] != '\0') {
+			strlcpy(fDriverName, info.name, sizeof(fDriverName));
+			return;
+		}
+	}
+
+	// Fallback: parsear del path del driver
 	// Path típico: /dev/graphics/vesa/0
-	// Queremos extraer "vesa" (el penúltimo componente)
 	if (path == NULL || path[0] == '\0') {
 		strlcpy(fDriverName, "(desconocido)", sizeof(fDriverName));
 		return;
 	}
 
-	// Copiar para poder manipular
 	char tmp[B_PATH_NAME_LENGTH];
 	strlcpy(tmp, path, sizeof(tmp));
 
-	// Sacar el último componente (ej: "0")
 	char* lastSlash = strrchr(tmp, '/');
 	if (lastSlash != NULL) {
 		*lastSlash = '\0';
-		// Ahora tmp es algo como /dev/graphics/vesa
-		// Extraer el último componente de eso
 		char* drvName = strrchr(tmp, '/');
 		if (drvName != NULL)
 			drvName++;
