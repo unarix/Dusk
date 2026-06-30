@@ -23,6 +23,9 @@ DuskWindow::DuskWindow()
 		.Add(fView)
 	.End();
 
+	// Permitir resize: mínimo según el contenido, máximo libre
+	SetSizeLimits(250, 800, 200, 600);
+
 	CenterOnScreen();
 }
 
