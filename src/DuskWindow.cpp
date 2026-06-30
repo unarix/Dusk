@@ -8,17 +8,20 @@
 #include "DuskView.h"
 
 #include <Application.h>
+#include <LayoutBuilder.h>
 
 
 DuskWindow::DuskWindow()
 	:
-	BWindow(BRect(100, 100, 380, 300), "Dusk",
+	BWindow(BRect(100, 100, 400, 320), "Dusk",
 		B_TITLED_WINDOW,
-		B_NOT_RESIZABLE | B_NOT_ZOOMABLE | B_AUTO_UPDATE_SIZE_LIMITS),
+		B_AUTO_UPDATE_SIZE_LIMITS),
 	fView(NULL)
 {
-	fView = new DuskView(Bounds(), &fEngine);
-	AddChild(fView);
+	fView = new DuskView(&fEngine);
+	BLayoutBuilder::Group<>(this, B_VERTICAL)
+		.Add(fView)
+	.End();
 
 	CenterOnScreen();
 }
@@ -40,7 +43,6 @@ DuskWindow::MessageReceived(BMessage* message)
 
 		case kMsgSetTemperature:
 		{
-			// BSlider manda "be:value" con el valor actual
 			int32 temp;
 			if (message->FindInt32("be:value", &temp) == B_OK) {
 				fEngine.SetTemperature(temp);

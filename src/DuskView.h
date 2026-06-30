@@ -17,7 +17,7 @@ class GammaEngine;
 
 class DuskView : public BView {
 public:
-						DuskView(BRect frame, GammaEngine* engine);
+						DuskView(GammaEngine* engine);
 	virtual				~DuskView();
 
 	virtual void		AttachedToWindow();

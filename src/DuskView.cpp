@@ -11,15 +11,14 @@
 #include <Box.h>
 #include <Button.h>
 #include <LayoutBuilder.h>
-#include <SeparatorView.h>
 #include <Slider.h>
 #include <StringView.h>
 #include <String.h>
 
 
-DuskView::DuskView(BRect frame, GammaEngine* engine)
+DuskView::DuskView(GammaEngine* engine)
 	:
-	BView(frame, "DuskView", B_FOLLOW_ALL, B_WILL_DRAW),
+	BView("DuskView", B_WILL_DRAW | B_SUPPORTS_LAYOUT),
 	fEngine(engine),
 	fToggleButton(NULL),
 	fTempSlider(NULL),
@@ -41,14 +40,14 @@ DuskView::AttachedToWindow()
 {
 	BView::AttachedToWindow();
 
-	// Estado actual
+	// Estado
 	fStatusLabel = new BStringView("status", "Inactivo");
 
-	// Valor de temperatura actual
+	// Valor de temperatura
 	fTempValue = new BStringView("tempValue", "3500K");
 	fTempValue->SetAlignment(B_ALIGN_RIGHT);
 
-	// Slider de temperatura
+	// Slider
 	fTempSlider = new BSlider("tempSlider", "Temperatura de color",
 		new BMessage(kMsgSetTemperature),
 		kMinTemperature, kMaxTemperature, B_HORIZONTAL);
@@ -59,12 +58,12 @@ DuskView::AttachedToWindow()
 	fTempSlider->SetTarget(Window());
 	fTempSlider->SetModificationMessage(new BMessage(kMsgSetTemperature));
 
-	// Botón toggle
+	// Botón
 	fToggleButton = new BButton("toggle", "Activar",
 		new BMessage(kMsgToggle));
 	fToggleButton->SetTarget(Window());
 
-	// Grupo "Filtro" con BBox
+	// BBox agrupando los controles del filtro
 	BBox* filterBox = new BBox("filterGroup");
 	filterBox->SetLabel("Filtro");
 
@@ -80,7 +79,7 @@ DuskView::AttachedToWindow()
 		.Add(fToggleButton)
 	.End();
 
-	// Info del driver + estado de soporte
+	// Label con info de driver
 	BString driverStr;
 	if (fEngine->InitCheck() != B_OK)
 		driverStr.SetToFormat("GPU: %s — no soportado", fEngine->DriverName());
@@ -88,15 +87,14 @@ DuskView::AttachedToWindow()
 		driverStr.SetToFormat("GPU: %s", fEngine->DriverName());
 	fDriverLabel = new BStringView("driver", driverStr.String());
 
-	// Layout principal
+	// Layout principal — sin glue para que el driver label quede visible
 	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING)
 		.SetInsets(B_USE_WINDOW_INSETS)
 		.Add(filterBox)
-		.AddGlue()
 		.Add(fDriverLabel)
 	.End();
 
-	// Si el driver no soporta gamma, deshabilitar controles y marcar en rojo
+	// Deshabilitar si no hay soporte
 	if (fEngine->InitCheck() != B_OK) {
 		fDriverLabel->SetHighColor((rgb_color){180, 40, 40, 255});
 		fToggleButton->SetEnabled(false);
