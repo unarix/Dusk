@@ -61,6 +61,24 @@ DuskView::AttachedToWindow()
 		.Add(fTempSlider)
 		.Add(fToggleButton)
 	.End();
+
+	// Mostrar qué driver está en uso
+	BString driverInfo;
+	driverInfo.SetToFormat("Driver: %s", fEngine->DriverName());
+	BStringView* driverLabel = new BStringView("driver", driverInfo.String());
+	driverLabel->SetFontSize(10.0f);
+	driverLabel->SetHighColor(100, 100, 100);
+	BLayoutBuilder::Group<>(this, B_VERTICAL)
+		.Add(driverLabel)
+	.End();
+
+	// Si el driver no soporta gamma, deshabilitamos los controles
+	if (fEngine->InitCheck() != B_OK) {
+		fStatusLabel->SetText("Driver no soportado");
+		fStatusLabel->SetHighColor(180, 40, 40);
+		fToggleButton->SetEnabled(false);
+		fTempSlider->SetEnabled(false);
+	}
 }
 
 

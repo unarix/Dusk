@@ -23,6 +23,7 @@ public:
 						~GammaEngine();
 
 	status_t			InitCheck() const { return fInitStatus; }
+	const char*			DriverName() const { return fDriverName; }
 
 	void				SetTemperature(int32 kelvin);
 	int32				Temperature() const { return fTemperature; }
@@ -53,6 +54,7 @@ private:
 	image_id			fAccelerantImage;
 	GetAccelerantHook	fGetHook;
 	set_indexed_colors	fSetIndexedColors;
+	char				fDriverName[64];
 };
 
 #endif // GAMMA_ENGINE_H

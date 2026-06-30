@@ -27,6 +27,7 @@ GammaEngine::GammaEngine()
 	fGetHook(NULL),
 	fSetIndexedColors(NULL)
 {
+	fDriverName[0] = '\0';
 	fInitStatus = _InitAccelerant();
 }
 
@@ -111,6 +112,25 @@ GammaEngine::_InitAccelerant()
 	fDeviceFD = open(driverPath, O_RDWR | O_CLOEXEC);
 	if (fDeviceFD < 0)
 		return B_ERROR;
+
+	// Extraer el nombre del driver del path (ej: /dev/graphics/intel_extreme/0)
+	{
+		const char* name = strrchr(driverPath, '/');
+		if (name != NULL) {
+			// retroceder un nivel más para obtener el nombre del driver
+			*const_cast<char*>(name) = '\0';
+			const char* drvName = strrchr(driverPath, '/');
+			if (drvName != NULL)
+				drvName++;
+			else
+				drvName = driverPath;
+			strlcpy(fDriverName, drvName, sizeof(fDriverName));
+			// restaurar el path
+			*const_cast<char*>(name) = '/';
+		} else {
+			strlcpy(fDriverName, driverPath, sizeof(fDriverName));
+		}
+	}
 
 	// Cargar el accelerant como add-on
 	fAccelerantImage = load_add_on(accelerantPath);
