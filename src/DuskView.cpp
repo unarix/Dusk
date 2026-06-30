@@ -68,8 +68,9 @@ DuskView::AttachedToWindow()
 	BBox* filterBox = new BBox("filterGroup");
 	filterBox->SetLabel("Filtro");
 
-	BLayoutBuilder::Group<>(filterBox, B_VERTICAL, B_USE_HALF_ITEM_SPACING)
-		.SetInsets(B_USE_SMALL_INSETS)
+	BLayoutBuilder::Group<>(filterBox, B_VERTICAL, B_USE_DEFAULT_SPACING)
+		.SetInsets(B_USE_DEFAULT_SPACING, B_USE_BIG_SPACING,
+			B_USE_DEFAULT_SPACING, B_USE_DEFAULT_SPACING)
 		.AddGroup(B_HORIZONTAL)
 			.Add(fStatusLabel)
 			.AddGlue()
@@ -79,9 +80,12 @@ DuskView::AttachedToWindow()
 		.Add(fToggleButton)
 	.End();
 
-	// Info del driver
+	// Info del driver + estado de soporte
 	BString driverStr;
-	driverStr.SetToFormat("GPU: %s", fEngine->DriverName());
+	if (fEngine->InitCheck() != B_OK)
+		driverStr.SetToFormat("GPU: %s — no soportado", fEngine->DriverName());
+	else
+		driverStr.SetToFormat("GPU: %s", fEngine->DriverName());
 	fDriverLabel = new BStringView("driver", driverStr.String());
 
 	// Layout principal
@@ -92,10 +96,9 @@ DuskView::AttachedToWindow()
 		.Add(fDriverLabel)
 	.End();
 
-	// Si el driver no soporta gamma
+	// Si el driver no soporta gamma, deshabilitar controles y marcar en rojo
 	if (fEngine->InitCheck() != B_OK) {
-		fStatusLabel->SetText("No soportado");
-		fStatusLabel->SetHighColor((rgb_color){180, 40, 40, 255});
+		fDriverLabel->SetHighColor((rgb_color){180, 40, 40, 255});
 		fToggleButton->SetEnabled(false);
 		fTempSlider->SetEnabled(false);
 	}
