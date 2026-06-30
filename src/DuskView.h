@@ -27,6 +27,8 @@ private:
 	BButton*			fToggleButton;
 	BSlider*			fTempSlider;
 	BStringView*		fStatusLabel;
+	BStringView*		fTempLabel;
+	BStringView*		fDriverLabel;
 };
 
 #endif // DUSK_VIEW_H
