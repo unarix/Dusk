@@ -86,16 +86,25 @@ GammaEngine::_InitAccelerant()
 	char driverPath[B_PATH_NAME_LENGTH];
 	char accelerantPath[B_PATH_NAME_LENGTH];
 
+	driverPath[0] = '\0';
+	accelerantPath[0] = '\0';
+
 	{
 		BPrivate::AppServerLink link;
 		link.StartMessage(AS_GET_DRIVER_PATH);
 		link.Attach<int32>(0);  // screen ID = main
 
 		status_t status;
-		if (link.FlushWithReply(status) != B_OK || status != B_OK)
+		if (link.FlushWithReply(status) != B_OK || status != B_OK) {
+			strlcpy(fDriverName, "(desconocido)", sizeof(fDriverName));
 			return B_ERROR;
+		}
 		link.ReadString(driverPath, B_PATH_NAME_LENGTH);
 	}
+
+	// Extraer el nombre del driver del path
+	// Path típico: /dev/graphics/vesa/0 o /dev/graphics/intel_extreme/0
+	_ExtractDriverName(driverPath);
 
 	{
 		BPrivate::AppServerLink link;
@@ -112,25 +121,6 @@ GammaEngine::_InitAccelerant()
 	fDeviceFD = open(driverPath, O_RDWR | O_CLOEXEC);
 	if (fDeviceFD < 0)
 		return B_ERROR;
-
-	// Extraer el nombre del driver del path (ej: /dev/graphics/intel_extreme/0)
-	{
-		const char* name = strrchr(driverPath, '/');
-		if (name != NULL) {
-			// retroceder un nivel más para obtener el nombre del driver
-			*const_cast<char*>(name) = '\0';
-			const char* drvName = strrchr(driverPath, '/');
-			if (drvName != NULL)
-				drvName++;
-			else
-				drvName = driverPath;
-			strlcpy(fDriverName, drvName, sizeof(fDriverName));
-			// restaurar el path
-			*const_cast<char*>(name) = '/';
-		} else {
-			strlcpy(fDriverName, driverPath, sizeof(fDriverName));
-		}
-	}
 
 	// Cargar el accelerant como add-on
 	fAccelerantImage = load_add_on(accelerantPath);
@@ -335,5 +325,37 @@ GammaEngine::_TemperatureToRGB(int32 kelvin, float* outRed, float* outGreen,
 	} else {
 		float b = 138.5177312231f * logf(temp - 10.0f) - 305.0447927307f;
 		*outBlue = std::max(0.0f, std::min(1.0f, b / 255.0f));
+	}
+}
+
+
+void
+GammaEngine::_ExtractDriverName(const char* path)
+{
+	// Path típico: /dev/graphics/vesa/0
+	// Queremos extraer "vesa" (el penúltimo componente)
+	if (path == NULL || path[0] == '\0') {
+		strlcpy(fDriverName, "(desconocido)", sizeof(fDriverName));
+		return;
+	}
+
+	// Copiar para poder manipular
+	char tmp[B_PATH_NAME_LENGTH];
+	strlcpy(tmp, path, sizeof(tmp));
+
+	// Sacar el último componente (ej: "0")
+	char* lastSlash = strrchr(tmp, '/');
+	if (lastSlash != NULL) {
+		*lastSlash = '\0';
+		// Ahora tmp es algo como /dev/graphics/vesa
+		// Extraer el último componente de eso
+		char* drvName = strrchr(tmp, '/');
+		if (drvName != NULL)
+			drvName++;
+		else
+			drvName = tmp;
+		strlcpy(fDriverName, drvName, sizeof(fDriverName));
+	} else {
+		strlcpy(fDriverName, path, sizeof(fDriverName));
 	}
 }

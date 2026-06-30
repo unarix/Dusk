@@ -45,6 +45,7 @@ private:
 
 	void				_TemperatureToRGB(int32 kelvin,
 							float* outRed, float* outGreen, float* outBlue);
+	void				_ExtractDriverName(const char* path);
 
 	int32				fTemperature;
 	bool				fEnabled;
