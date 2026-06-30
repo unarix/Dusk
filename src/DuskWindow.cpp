@@ -8,23 +8,21 @@
 #include "DuskView.h"
 
 #include <Application.h>
-#include <LayoutBuilder.h>
 
 
 DuskWindow::DuskWindow()
 	:
-	BWindow(BRect(100, 100, 400, 320), "Dusk",
-		B_TITLED_WINDOW,
-		B_AUTO_UPDATE_SIZE_LIMITS),
+	BWindow(BRect(100, 100, 380, 310), "Dusk",
+		B_TITLED_WINDOW, 0),
 	fView(NULL)
 {
 	fView = new DuskView(&fEngine);
-	BLayoutBuilder::Group<>(this, B_VERTICAL)
-		.Add(fView)
-	.End();
+	AddChild(fView);
 
-	// Permitir resize: mínimo según el contenido, máximo libre
-	SetSizeLimits(250, 800, 200, 600);
+	// Límites de resize
+	float minW, maxW, minH, maxH;
+	GetSizeLimits(&minW, &maxW, &minH, &maxH);
+	SetSizeLimits(280, 900, 210, 700);
 
 	CenterOnScreen();
 }

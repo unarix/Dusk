@@ -11,6 +11,7 @@
 #include <Box.h>
 #include <Button.h>
 #include <LayoutBuilder.h>
+#include <Size.h>
 #include <Slider.h>
 #include <StringView.h>
 #include <String.h>
@@ -18,7 +19,7 @@
 
 DuskView::DuskView(GammaEngine* engine)
 	:
-	BView("DuskView", B_WILL_DRAW | B_SUPPORTS_LAYOUT),
+	BView("DuskView", B_WILL_DRAW | B_SUPPORTS_LAYOUT | B_FRAME_EVENTS),
 	fEngine(engine),
 	fToggleButton(NULL),
 	fTempSlider(NULL),
@@ -27,6 +28,7 @@ DuskView::DuskView(GammaEngine* engine)
 	fDriverLabel(NULL)
 {
 	SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
+	SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNLIMITED));
 }
 
 
