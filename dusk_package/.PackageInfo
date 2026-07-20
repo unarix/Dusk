@@ -1,0 +1,15 @@
+name            dusk
+version         1.0.0-1
+architecture    x86_64
+summary         "Night Shift Haiku"
+description     "Blue light filter designed natively for Haiku."
+packager        "Nahuel Tello <ntello@upe.edu.ar>"
+vendor          "Unarix"
+licenses        { "MIT" }
+copyrights      { "Copyright 2026 Tu Nombre" }
+provides {
+    dusk = 1.0.0-1
+}
+requires {
+    haiku >= r1~beta4
+}
