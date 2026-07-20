@@ -22,6 +22,15 @@ PKG_DIR="dusk_package"
 mkdir -p "$PKG_DIR/apps"
 cp -a "$BIN_PATH" "$PKG_DIR/apps/Dusk"
 
+# --- MAGIA PARA EL MENÚ DESKBAR ---
+echo "🔗 Creando acceso directo para el menú..."
+mkdir -p "$PKG_DIR/data/deskbar/menu/Applications"
+# Entramos a la carpeta y creamos un enlace simbólico relativo que sube 4 niveles y entra a apps/
+cd "$PKG_DIR/data/deskbar/menu/Applications"
+ln -s ../../../../apps/Dusk Dusk
+cd - > /dev/null
+# ----------------------------------
+
 cat <<EOF > "$PKG_DIR/.PackageInfo"
 name            dusk
 version         1.0.0-1
